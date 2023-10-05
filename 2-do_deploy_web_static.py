@@ -8,6 +8,23 @@ import os
 env.hosts = ['18.209.178.16', '54.173.85.21']
 env.user = 'ubuntu'
 
+
+def do_pack():
+    """
+        return the archive path if archive has generated correctly
+    """
+
+    local("mkdir -p versions")
+    date = datetime.now().strftime("%Y%m%d%H%M%S")
+    archived_f_path = "versions/web_static_{}.tgz".format(date)
+    t_gzip_archive = local("tar -cvzf {} web_static".format(archived_f_path))
+
+    if t_gzip_archive.succeeded:
+        return archived_f_path
+    else:
+        return None
+
+
 def do_deploy(archive_path):
     """Distributes an archive to web servers.
 
@@ -21,30 +38,31 @@ def do_deploy(archive_path):
         return False
 
     try:
-        # Extract archive filename without extension
-        archive_filename = os.path.basename(archive_path).split('.')[0]
+        tmp_archive = "/tmp/{}".format(archive_path.split("/")[1])
+        releases = "/data/web_static/releases/"
+        archive_name = archive_path.split("/")[1].split(".")[0]
+        current = "/data/web_static/current"
+        full_path = "{}{}/".format(releases, archive_name)
 
-        # Upload the archive to the /tmp/ directory of the web server
-        remote_tmp_path = "/tmp/{}".format(os.path.basename(archive_path))
-        c.put(archive_path, remote_tmp_path)
+        put(archive_path, tmp_archive)
 
-        # Create release directory
-        remote_release_dir = "/data/web_static/releases/{}".format(archive_filename)
-        c.run("mkdir -p {}".format(remote_release_dir))
+        run("cd /home/{}".format(env.user))
 
-        # Uncompress the archive to the release directory
-        c.run("tar -xzf {} -C {}".format(remote_tmp_path, remote_release_dir))
+        run("sudo mkdir -p {}".format(full_path))
 
-        # Delete the archive from the web server
-        c.run("rm -f {}".format(remote_tmp_path))
+        run("sudo tar -xzf {} -C {}".format(tmp_archive,
+                                            full_path))
 
-        # Remove old symbolic link
-        c.run("rm -rf /data/web_static/current")
+        run("sudo rm -rf {}".format(tmp_archive))
 
-        # Create a new symbolic link to the new version
-        c.run("ln -s {} /data/web_static/current".format(remote_release_dir))
+        run("sudo mv {}web_static/* {}".format(full_path, full_path))
+
+        run("sudo rm -rf /data/web_static/current")
+
+        run("sudo ln -sf {} {}".format(full_path, current))
+
+        print("New version deployed!")
 
         return True
-
-    except Exception:
+    except Exception as e:
         return False
