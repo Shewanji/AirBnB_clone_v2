@@ -14,41 +14,39 @@ def do_deploy(archive_path):
     """Distribute an archive to the web servers and deploy it.
 
     Args:
-        archive_path (str): The path to the archive to deploy.
+    archive_path (str): The path to the archive to deploy.
 
     Returns:
-        bool: True if deployment is successful, False otherwise.
+    bool: True if deployment is successful, False otherwise.
     """
-    if not (path.exists(archive_path)):
-        return False
-
     try:
-        # Upload the archive to /tmp/ directory on the web servers
+        if not (path.exists(archive_path)):
+            return False
+
         put(archive_path, '/tmp/')
 
-        # Extract archive to /data/web_static/releases/<archive_filename_without_extension>/
-        archive_filename = os.path(archive_path)
-        folder_name = archive_filename.replace('.tgz', '')
+        timestamp = archive_path[-18:-4]
+        run('sudo mkdir -p /data/web_static/\
+releases/web_static_{}/'.format(timestamp))
 
-        run('mkdir -p /data/web_static/releases/{}/'.format(folder_name))
-        run('tar -xzf /tmp/{} -C /data/web_static/releases/{}/'
-            .format(archive_filename, folder_name))
+        run('sudo tar -xzf /tmp/web_static_{}.tgz -C \
+/data/web_static/releases/web_static_{}/'
+            .format(timestamp, timestamp))
 
-        # Remove the uploaded archive
-        run('rm /tmp/{}'.format(archive_filename))
+        run('sudo rm /tmp/web_static_{}.tgz'.format(timestamp))
 
-        # Move files to final location
-        run('mv /data/web_static/releases/{}/web_static/* '
-            '/data/web_static/releases/{}/'.format(folder_name, folder_name))
+        run('sudo mv /data/web_static/releases/web_static_{}/web_static/* \
+/data/web_static/releases/web_static_{}/'.format(timestamp, timestamp))
 
-        # Remove the old symbolic link
-        run('rm -rf /data/web_static/current')
+        run('sudo rm -rf /data/web_static/releases/\
+web_static_{}/web_static'
+            .format(timestamp))
 
-        # Create a new symbolic link
-        run('ln -s /data/web_static/releases/{}/ /data/web_static/current'
-            .format(folder_name))
+        run('sudo rm -rf /data/web_static/current')
+
+        run('sudo ln -s /data/web_static/releases/\
+web_static_{}/ /data/web_static/current'.format(timestamp))
+        except Exception as e:
+            return False
 
         return True
-
-    except Exception as e:
-        return False
